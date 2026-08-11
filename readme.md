@@ -89,7 +89,7 @@ O Wazuh compõe a camada SIEM do laboratório e utiliza a telemetria produzida p
 
 # 1. Android Network Sensor
 
-O sensor foi implementado em um **LG K41S com Android 11**, utilizando o Termux como ambiente Linux userspace.
+O sensor foi implementado em um **dispositivo Android dedicado ao laboratório**, utilizando o Termux como ambiente Linux userspace.
 
 Estrutura original:
 
@@ -191,12 +191,12 @@ Cada host esperado gera um evento, mesmo quando não responde:
 {
   "event_type": "network.host.status",
   "sensor_id": "android-sensor-01",
-  "network_id": "home-lab",
+  "network_id": "example-lab",
   "observed_at": "2026-08-07T21:42:00+00:00",
   "source": "android",
   "data": {
-    "message": "Host 192.168.1.10 is up",
-    "ip": "192.168.1.10",
+    "message": "Host 192.0.2.10 is up",
+    "ip": "192.0.2.10",
     "state": "up",
     "reason": "syn-ack",
     "scan_type": "nmap_tcp_discovery"
@@ -472,8 +472,8 @@ Estrutura lógica:
 ```json
 {
   "schema_version": 1,
-  "network_id": "home-lab",
-  "network_cidr": "192.168.1.0/24",
+  "network_id": "example-lab",
+  "network_cidr": "192.0.2.0/24",
   "devices": []
 }
 ```
@@ -542,11 +542,11 @@ Exemplo conceitual:
 ```json
 {
   "event_type": "device_observed",
-  "sensor_id": "soc-wazuh-01",
-  "network_id": "home-lab",
+  "sensor_id": "lab-observer-01",
+  "network_id": "example-lab",
   "source": "vm",
   "data": {
-    "ip": "192.168.1.20",
+    "ip": "192.0.2.20",
     "mac": "xx:xx:xx:xx:xx:xx",
     "vendor": "Example Vendor",
     "device_name": "example-device",
@@ -854,7 +854,7 @@ Os artefatos reais de rede não são publicados por poderem conter IPs, MACs e i
 
 # Segurança do repositório
 
-Este snapshot foi sanitizado para publicação.
+O conteúdo versionado foi sanitizado para publicação.
 
 Não são incluídos:
 
