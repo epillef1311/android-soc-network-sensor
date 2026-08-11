@@ -1,0 +1,44 @@
+# Segredos
+.env
+*.key
+*.pem
+secrets/
+credentials/
+
+# Logs e eventos reais
+*.log
+*.jsonl
+data/
+captures/
+
+# Capturas de rede
+*.pcap
+*.pcapng
+
+# Dados locais
+local-config.*
+authorized-networks.local.*
+
+# Sistema e editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Configurações locais e dados de execução
+*.env
+!*.env.example
+collector.env
+api.env
+sensor.env
+*.ndjson
+*.xml
+device_state.json
+known_devices.json
+id_*

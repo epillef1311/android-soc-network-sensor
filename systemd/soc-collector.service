@@ -1,0 +1,31 @@
+[Unit]
+Description=SOC Collector API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=soccollector
+Group=soccollector
+WorkingDirectory=/opt/soc-collector
+EnvironmentFile=/etc/soc-collector/collector.env
+
+ExecStart=/opt/soc-collector/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/var/lib/soc-collector
+
+[Install]
+WantedBy=multi-user.target

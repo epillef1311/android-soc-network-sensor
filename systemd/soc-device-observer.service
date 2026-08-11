@@ -1,0 +1,31 @@
+[Unit]
+Description=SOC network device observer
+Wants=network-online.target
+After=network-online.target soc-collector.service
+Requires=soc-collector.service
+
+ConditionFileIsExecutable=/usr/local/sbin/soc-device-observer
+ConditionPathExists=/etc/soc-collector/known_devices.json
+ConditionPathExists=/etc/soc-collector/collector.env
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/soc-device-observer
+TimeoutStartSec=180
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+ReadWritePaths=/var/lib/soc-collector
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_PACKET AF_NETLINK
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN CAP_CHOWN CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH

@@ -1,0 +1,13 @@
+[Unit]
+Description=Run SOC network device observer every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=15s
+RandomizedDelaySec=20s
+Persistent=true
+Unit=soc-device-observer.service
+
+[Install]
+WantedBy=timers.target
