@@ -6,8 +6,6 @@ O projeto reaproveita um **smartphone Android com Termux como sensor portátil d
 
 A solução combina **Android, Termux, Nmap, Python, Bash, FastAPI, Pydantic, systemd, arp-scan, Linux e Wazuh** em uma arquitetura própria de telemetria defensiva.
 
-![Visão geral: Android e VM Observer enviando telemetria ao Collector](docs/images/androidVmCollector.png)
-
 > Este repositório representa um laboratório real em evolução. Ele não pretende ser um IDS/IPS comercial completo; o objetivo é implementar, validar e documentar componentes típicos de uma arquitetura SOC de forma reproduzível e demonstrável em portfólio.
 
 ---
@@ -480,15 +478,7 @@ Exemplo conceitual:
 
 O Observer não escreve diretamente em `events.ndjson`: ele utiliza a mesma API do Android.
 
-```text
-Android ───────────┐
-                   │
-                   ▼
-               Collector
-                   ▲
-                   │
-VM Observer ───────┘
-```
+![Android e VM Observer enviando telemetria ao Collector](docs/images/androidVmCollector.png)
 
 ---
 
