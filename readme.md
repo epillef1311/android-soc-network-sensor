@@ -6,6 +6,8 @@ O projeto reaproveita um **smartphone Android com Termux como sensor portátil d
 
 A solução combina **Android, Termux, Nmap, Python, Bash, FastAPI, Pydantic, systemd, arp-scan, Linux e Wazuh** em uma arquitetura própria de telemetria defensiva.
 
+![Visão geral: Android e VM Observer enviando telemetria ao Collector](docs/images/androidVmCollector.png)
+
 > Este repositório representa um laboratório real em evolução. Ele não pretende ser um IDS/IPS comercial completo; o objetivo é implementar, validar e documentar componentes típicos de uma arquitetura SOC de forma reproduzível e demonstrável em portfólio.
 
 ---
@@ -45,45 +47,7 @@ A arquitetura atual possui três componentes principais:
 
 O Wazuh compõe a camada SIEM do laboratório e utiliza a telemetria produzida pela infraestrutura.
 
-```text
-                              REDE LOCAL
-                                  │
-                  ┌───────────────┴────────────────┐
-                  │                                │
-                  ▼                                ▼
-        ┌─────────────────────┐        ┌─────────────────────────┐
-        │ Android / Termux    │        │ Ubuntu Device Observer  │
-        │                     │        │                         │
-        │ Nmap discovery      │        │ arp-scan                │
-        │ heartbeat           │        │ inventário de ativos    │
-        │ Python + Bash       │        │ first_seen / last_seen  │
-        └──────────┬──────────┘        └────────────┬────────────┘
-                   │                                │
-                   │ HTTP / JSON                    │ HTTP / JSON
-                   │ Bearer Token                   │ Bearer Token
-                   └───────────────┬────────────────┘
-                                   ▼
-                         ┌─────────────────────┐
-                         │ SOC Collector API   │
-                         │                     │
-                         │ FastAPI + Pydantic  │
-                         │ POST /events        │
-                         │ GET /health         │
-                         └──────────┬──────────┘
-                                    │
-                                    ▼
-                  /var/lib/soc-collector/events.ndjson
-                                    │
-                                    ▼
-                          ┌──────────────────┐
-                          │ Wazuh / SIEM     │
-                          │                  │
-                          │ Manager          │
-                          │ Indexer          │
-                          │ Dashboard        │
-                          │ Filebeat         │
-                          └──────────────────┘
-```
+![Arquitetura do Android SOC Network Sensor](docs/images/arquitetura.png)
 
 ---
 
@@ -133,30 +97,7 @@ A lista de hosts monitorados é carregada de:
 
 Fluxo:
 
-```text
-expected-hosts.txt
-        │
-        ▼
-network_discovery.sh
-        │
-        ▼
-      Nmap
-        │
-        ▼
-discovery-<timestamp>.xml
-        │
-        ▼
-nmap_to_events.py
-        │
-        ▼
-discovery-<timestamp>.ndjson
-        │
-        ▼
-send_events.py
-        │
-        ▼
-SOC Collector API
-```
+![Fluxo de descoberta e envio do sensor Android](docs/images/fluxo.png)
 
 ### `network_discovery.sh`
 
@@ -226,20 +167,7 @@ Assim, o sensor monitora tanto presença quanto ausência de hosts esperados.
 - guarda o `event_id` retornado pelo Collector;
 - retorna exit code de erro quando há falhas.
 
-```text
-NDJSON
-  │
-  ▼
-send_events.py
-  │
-  │ POST /events
-  │ Authorization: Bearer <token>
-  ▼
-SOC Collector
-  │
-  ▼
-HTTP 202 + event_id
-```
+![Envio de eventos NDJSON ao SOC Collector](docs/images/sendEvents.png)
 
 ## Heartbeat
 
@@ -399,17 +327,7 @@ momento recebido pelo Collector
 
 Fluxo de rastreabilidade:
 
-```text
-Sensor
-  ↓
-POST /events
-  ↓
-event_id
-  ↓
-log de envio
-  ↓
-events.ndjson
-```
+![Fluxo de rastreabilidade dos eventos](docs/images/fluxoRastreabilidade.png)
 
 ## Persistência
 
@@ -737,19 +655,7 @@ Objetivo: monitorar hosts definidos pelo operador.
 
 ## Device Observation
 
-```text
-Ubuntu
-  ↓
-arp-scan
-  ↓
-soc-device-observer
-  ├── known_devices.json
-  └── device_state.json
-  ↓
-device_observed
-  ↓
-Collector
-```
+![Fluxo de observação de dispositivos na VM Ubuntu](docs/images/deviceObservation.png)
 
 Objetivo: observar a LAN e identificar dispositivos conhecidos ou desconhecidos.
 
