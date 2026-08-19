@@ -144,7 +144,7 @@ async def receive_event(
     received_at = datetime.now(timezone.utc)
 
     event_payload = event.model_dump(mode="json")
-    event_data = event_payload.pop("data", None)
+    event_data = event_payload.get("data")
 
     record = {
         "event_id": event_id,
@@ -157,13 +157,6 @@ async def receive_event(
 
         if isinstance(message, str) and message:
             record["message"] = message
-
-        record["event_data"] = json.dumps(
-            event_data,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
 
     EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
 

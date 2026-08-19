@@ -39,6 +39,7 @@ api.env
 sensor.env
 *.ndjson
 *.xml
+!wazuh/local_rules.xml
 device_state.json
 known_devices.json
 id_*
