@@ -1,0 +1,27 @@
+[Unit]
+Description=SOC Android Sensor Heartbeat Watchdog
+After=soc-collector.service
+Requires=soc-collector.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+
+EnvironmentFile=/etc/soc-collector/collector.env
+Environment=SOC_COLLECTOR_URL=http://127.0.0.1:8000/events
+
+ExecStart=/usr/local/sbin/soc-heartbeat-watchdog
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+ReadWritePaths=/var/lib/soc-heartbeat-watchdog
+ReadOnlyPaths=/var/lib/soc-collector/events.ndjson
+
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

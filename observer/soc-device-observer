@@ -1,4 +1,3 @@
-\
 #!/usr/bin/env python3
 
 import grp
@@ -13,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
 
 INTERFACE = "enp0s3"
 INVENTORY_FILE = Path("/etc/soc-collector/known_devices.json")
@@ -278,6 +278,7 @@ def main():
 
         known = known_by_mac.get(mac)
         previous = state_devices.get(mac, {})
+        first_seen_device = mac not in state_devices
 
         classification = "known" if known else "unknown"
         device_name = known.get("name", "unknown") if known else "unknown"
@@ -319,6 +320,7 @@ def main():
                 "classification": classification,
                 "private_mac": private_mac,
                 "first_seen": first_seen,
+                "first_seen_device": first_seen_device,
                 "last_seen": observed_at,
                 "discovery_method": DISCOVERY_METHOD,
             },

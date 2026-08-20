@@ -1,45 +1,54 @@
 <!-- Local rules -->
 
-<!-- Modify it at your will. -->
-<!-- Copyright (C) 2015, Wazuh Inc. -->
+<!--
+  Android SOC Network Sensor
+  Custom Wazuh detection rules
 
-<!-- Example -->
-<group name="local,syslog,sshd,">
+  Environment:
+    Network ID: home-lab
+    Android sensor: android-sensor-01
+    SOC host: soc-wazuh-01
 
-  <!--
-  Dec 10 01:02:02 host sshd[1234]: Failed none for root from 1.1.1.1 port 1066 ssh2
-  -->
-  <rule id="100001" level="5">
-    <if_sid>5716</if_sid>
-    <srcip>1.1.1.1</srcip>
-    <description>sshd: authentication failed from IP 1.1.1.1.</description>
-    <group>authentication_failed,pci_dss_10.2.4,pci_dss_10.2.5,</group>
-  </rule>
+  Rule ranges:
+    100100-100109 -> Android sensor heartbeat
+    100110-100119 -> Network discovery / host availability
+    100120-100129 -> Device discovery / unknown devices
+    100130-100139 -> Sensor health / watchdog
+-->
 
-</group>
-
+<!-- ================================================================ -->
+<!-- Android sensor heartbeat                                         -->
+<!-- ================================================================ -->
 
 <group name="soc_sensor,android_sensor,heartbeat,">
 
-  <rule id="100100" level="3">
+  <rule id="100100" level="0">
     <decoded_as>json</decoded_as>
     <field name="event_type">^heartbeat$</field>
     <field name="sensor_id">^android-sensor-01$</field>
+    <field name="network_id">^home-lab$</field>
+    <field name="source">^android$</field>
     <description>Heartbeat recebido do sensor Android: $(sensor_id)</description>
   </rule>
 
 </group>
+
+<!-- ================================================================ -->
+<!-- Android network discovery                                        -->
+<!-- ================================================================ -->
 
 <group name="soc_sensor,android_sensor,network_discovery,">
 
   <rule id="100110" level="0">
     <decoded_as>json</decoded_as>
     <field name="event_type" type="pcre2">^network\.host\.status$</field>
-    <field name="sensor_id" type="pcre2">^android-sensor-01$</field>
+    <field name="sensor_id">^android-sensor-01$</field>
+    <field name="network_id">^home-lab$</field>
+    <field name="source">^android$</field>
     <description>Evento de descoberta de rede recebido do sensor Android.</description>
   </rule>
 
-  <rule id="100111" level="3">
+  <rule id="100111" level="0">
     <if_sid>100110</if_sid>
     <field name="data.state">^up$</field>
     <description>Host ativo detectado pelo sensor Android: $(message)</description>
@@ -55,12 +64,18 @@
 
 </group>
 
+<!-- ================================================================ -->
+<!-- Network device discovery                                         -->
+<!-- ================================================================ -->
 
 <group name="soc_network,device_discovery,">
 
   <rule id="100120" level="0">
     <decoded_as>json</decoded_as>
     <field name="event_type">^device_observed$</field>
+    <field name="sensor_id">^soc-wazuh-01$</field>
+    <field name="network_id">^home-lab$</field>
+    <field name="source">^vm$</field>
     <description>SOC network device observation event.</description>
   </rule>
 
@@ -69,6 +84,59 @@
     <field name="data.classification">^unknown$</field>
     <description>Unknown device detected on monitored network: $(data.ip) - $(data.mac)</description>
     <group>network,asset_discovery,unknown_device,</group>
+  </rule>
+
+  <rule id="100122" level="10" frequency="3" timeframe="300" ignore="300">
+    <if_matched_sid>100121</if_matched_sid>
+    <different_field>data.mac</different_field>
+    <description>Multiple unknown devices detected on monitored network within 5 minutes.</description>
+    <group>network,asset_discovery,unknown_device,multiple_unknown_devices,correlation,</group>
+  </rule>
+
+  <rule id="100123" level="9">
+    <if_sid>100121</if_sid>
+    <field name="data.first_seen_device">^true$</field>
+    <description>First-seen unknown device detected on monitored network: $(data.ip) - $(data.mac)</description>
+    <group>network,asset_discovery,unknown_device,first_seen_unknown,</group>
+  </rule>
+
+  <rule id="100124" level="8">
+    <if_sid>100121</if_sid>
+    <field name="data.private_mac">^true$</field>
+    <field name="data.first_seen_device">^false$</field>
+    <description>Unknown device using a locally administered/private MAC detected: $(data.ip) - $(data.mac)</description>
+    <group>network,asset_discovery,unknown_device,private_mac,randomized_mac,</group>
+  </rule>
+
+</group>
+
+<!-- ================================================================ -->
+<!-- Sensor health watchdog                                           -->
+<!-- ================================================================ -->
+
+<group name="soc_sensor,sensor_health,">
+
+  <rule id="100130" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="event_type" type="pcre2">^sensor\.health$</field>
+    <field name="sensor_id">^soc-wazuh-01$</field>
+    <field name="network_id">^home-lab$</field>
+    <field name="source">^vm$</field>
+    <description>SOC sensor health event.</description>
+  </rule>
+
+  <rule id="100131" level="9">
+    <if_sid>100130</if_sid>
+    <field name="data.status">^offline$</field>
+    <description>Sensor de monitoramento offline: $(data.monitored_sensor) - ultimo heartbeat ha $(data.heartbeat_age_seconds) segundos</description>
+    <group>sensor_offline,availability,monitoring_failure,</group>
+  </rule>
+
+  <rule id="100132" level="3">
+    <if_sid>100130</if_sid>
+    <field name="data.status">^recovered$</field>
+    <description>Sensor de monitoramento recuperado: $(data.monitored_sensor)</description>
+    <group>sensor_recovered,availability,</group>
   </rule>
 
 </group>

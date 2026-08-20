@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+EVENTS_FILE = Path("/var/lib/soc-collector/events.ndjson")
+STATE_FILE = Path("/var/lib/soc-heartbeat-watchdog/state.json")
+
+COLLECTOR_URL = os.environ.get(
+    "SOC_COLLECTOR_URL",
+    "http://127.0.0.1:8000/events",
+)
+
+TOKEN = os.environ.get("SOC_COLLECTOR_TOKEN")
+
+TARGET_SENSOR = "android-sensor-01"
+NETWORK_ID = "home-lab"
+WATCHDOG_SENSOR_ID = "soc-wazuh-01"
+
+TIMEOUT_SECONDS = 15 * 60
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
+
+
+def isoformat_z(value):
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def parse_timestamp(value):
+    if not value:
+        return None
+
+    value = value.strip()
+
+    if value.endswith("Z"):
+        value = value[:-1] + "+00:00"
+
+    dt = datetime.fromisoformat(value)
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt.astimezone(timezone.utc)
+
+
+def find_last_heartbeat():
+    if not EVENTS_FILE.exists():
+        return None
+
+    last_heartbeat = None
+
+    with EVENTS_FILE.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+
+            if not line:
+                continue
+
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if (
+                event.get("event_type") == "heartbeat"
+                and event.get("sensor_id") == TARGET_SENSOR
+            ):
+                last_heartbeat = event
+
+    return last_heartbeat
+
+
+def load_state():
+    if not STATE_FILE.exists():
+        return {}
+
+    try:
+        with STATE_FILE.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_state(state):
+    temp_file = STATE_FILE.with_suffix(".tmp")
+
+    with temp_file.open("w", encoding="utf-8") as handle:
+        json.dump(
+            state,
+            handle,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+    os.chmod(temp_file, 0o640)
+    os.replace(temp_file, STATE_FILE)
+
+
+def send_event(status, message, heartbeat_age, last_heartbeat):
+    if not TOKEN:
+        raise RuntimeError("SOC_COLLECTOR_TOKEN não está definido")
+
+    now = utc_now()
+
+    payload = {
+        "event_type": "sensor.health",
+        "sensor_id": WATCHDOG_SENSOR_ID,
+        "network_id": NETWORK_ID,
+        "observed_at": isoformat_z(now),
+        "source": "vm",
+        "data": {
+            "message": message,
+            "monitored_sensor": TARGET_SENSOR,
+            "status": status,
+            "heartbeat_age_seconds": int(heartbeat_age),
+            "timeout_seconds": TIMEOUT_SECONDS,
+            "last_heartbeat": (
+                isoformat_z(last_heartbeat)
+                if last_heartbeat
+                else None
+            ),
+        },
+    }
+
+    body = json.dumps(payload).encode("utf-8")
+
+    request = urllib.request.Request(
+        COLLECTOR_URL,
+        data=body,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            response_body = response.read().decode("utf-8")
+
+            if response.status != 202:
+                raise RuntimeError(
+                    f"Collector retornou HTTP {response.status}: "
+                    f"{response_body}"
+                )
+
+            result = json.loads(response_body)
+
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            f"Collector retornou HTTP {exc.code}: {body}"
+        ) from exc
+
+    print(
+        f"EVENT status={status} "
+        f"event_id={result.get('event_id')} "
+        f"heartbeat_age_seconds={int(heartbeat_age)}"
+    )
+
+
+def main():
+    now = utc_now()
+    state = load_state()
+
+    heartbeat_event = find_last_heartbeat()
+
+    if heartbeat_event is None:
+        last_heartbeat_time = None
+        heartbeat_age = float("inf")
+    else:
+        timestamp = (
+            heartbeat_event.get("observed_at")
+            or heartbeat_event.get("received_at")
+        )
+
+        last_heartbeat_time = parse_timestamp(timestamp)
+
+        if last_heartbeat_time is None:
+            heartbeat_age = float("inf")
+        else:
+            heartbeat_age = max(
+                0,
+                (now - last_heartbeat_time).total_seconds(),
+            )
+
+    new_status = (
+        "offline"
+        if heartbeat_age > TIMEOUT_SECONDS
+        else "online"
+    )
+
+    previous_status = state.get("status")
+
+    print(
+        f"sensor={TARGET_SENSOR} "
+        f"previous={previous_status or 'unknown'} "
+        f"current={new_status} "
+        f"heartbeat_age_seconds="
+        f"{'unknown' if heartbeat_age == float('inf') else int(heartbeat_age)}"
+    )
+
+    if new_status == "offline" and previous_status != "offline":
+        if last_heartbeat_time:
+            message = (
+                f"Sensor {TARGET_SENSOR} sem heartbeat "
+                f"há {int(heartbeat_age)} segundos"
+            )
+        else:
+            message = (
+                f"Nenhum heartbeat encontrado para "
+                f"{TARGET_SENSOR}"
+            )
+
+        send_event(
+            "offline",
+            message,
+            0 if heartbeat_age == float("inf") else heartbeat_age,
+            last_heartbeat_time,
+        )
+
+    elif (
+        new_status == "online"
+        and previous_status == "offline"
+    ):
+        message = (
+            f"Sensor {TARGET_SENSOR} voltou a enviar heartbeat"
+        )
+
+        send_event(
+            "recovered",
+            message,
+            heartbeat_age,
+            last_heartbeat_time,
+        )
+
+    state = {
+        "status": new_status,
+        "checked_at": isoformat_z(now),
+        "last_heartbeat": (
+            isoformat_z(last_heartbeat_time)
+            if last_heartbeat_time
+            else None
+        ),
+        "heartbeat_age_seconds": (
+            None
+            if heartbeat_age == float("inf")
+            else int(heartbeat_age)
+        ),
+        "timeout_seconds": TIMEOUT_SECONDS,
+    }
+
+    save_state(state)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        print(
+            f"ERROR: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
